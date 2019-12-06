@@ -25,6 +25,9 @@ class HAgent(Agent.Agent):
         self.kappa = np.random.uniform(min_kappa,max_kappa)
         #产生挂单时间
         self.gamma = 1
+        #计时因子：计算上一次提交订单距今的时间
+        self.time = self.gamma + 1
+
 
     #生成订单
     def gen_order(self,para,Asklist,Bidlist):
@@ -64,10 +67,20 @@ class HAgent(Agent.Agent):
 
     #判断是否参与市场
     def judge_participate(self,true_delta):
-        if true_delta <= self.eita:
+        if self.order_flag:
+            self.time += 1
             return False
         else:
-            return True
+            if self.time > self.gamma:
+                self.time = 2
+                if true_delta <= self.eita:
+                    return False
+                else:
+                    return True
+            else:
+                self.time += 1
+                return False
+
 
     #【旧】产生最优价格
     def gen_best_price(self,time,orderlist):
