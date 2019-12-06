@@ -130,12 +130,18 @@ def gen_deals(AskList,BidList,old_price):
     return deals,AskList,BidList,trader_list,market_price
 
 # 【第五步】更新交易者状态
-def updata_trader_stutus(trader_list,normal_agents,market):
+def updata_low_trader_stutus(trader_list,normal_agents,market):
     #更新订单状态标志、更新下一周期的策略选择
     for agent in normal_agents:
         if agent.traderID in trader_list:
             agent.order_flag = False
         agent.update_phi(market)
+
+def updata_high_trader_stutus(trader_list,high_agents):
+    #更新订单状态标志、更新下一周期的策略选择
+    for agent in high_agents:
+        if agent.traderID in trader_list:
+            agent.order_flag = False
 
 #创建新文件夹
 def mkdir(path):
@@ -151,6 +157,7 @@ if __name__ == '__main__':
     agent_flag = False  # 控制普通程式化交易者的信息输出，默认为Fasle
     list_flag = True   # 控制每轮交易的订单簿输出，默认为Flase
     high_flag = True    #控制市场中是否有高频交易者
+    auction_flag = True  # 控制开盘后的市场匹配方式，默认为True，表示连续竞价
 
     for r in range(0,MC):
         # 指令簿,用于订单匹配计算
@@ -192,7 +199,7 @@ if __name__ == '__main__':
                 SType.append(agent.strategy_type)
             LowAgent[column_name] = SType
 
-        deals, AskList, BidList, trader_list, market_price = market.call_auction(AskList, BidList)
+        deals, AskList, BidList, trader_list, market_price = market.call_auction(AskList, BidList,market.P_list[-1])
         if list_flag:
             askfile = './Data' + str(r) + './AskList/AskList' + str(market.t) + '.csv'
             AskList.to_csv(askfile, index=False)
@@ -202,7 +209,10 @@ if __name__ == '__main__':
         market.P_list.append(market_price)
         #deals = deals.append(temp_deals, ignore_index=True)
         print('There are ', len(deals), 'deals in this round! The market Price is ', market.P_list[-1])
-        updata_trader_stutus(trader_list, normal_agents, market)
+        if high_flag:
+            updata_high_trader_stutus(trader_list, high_agents)
+        updata_low_trader_stutus(trader_list, normal_agents, market)
+
 
         mkdir('./Data' + str(r) + '/Deals')
         dealfile = './Data' + str(r) + './Deals/Deals' + str(market.t) + '.csv'
@@ -230,7 +240,8 @@ if __name__ == '__main__':
                 LowAgent[column_name] = SType
 
             # 【第二步】高频交易者提交订单、【第三步】高频交易者主动撤单判断（撤单订单就不会提交到最终的市场中）
-            AskList,BidList = gen_high_orders(market,AskList,BidList)
+            if high_flag:
+                AskList,BidList = gen_high_orders(market,AskList,BidList)
 
             if list_flag:
                 askfile = './Data' + str(r) + './AskList/AskList' + str(market.t) + '.csv'
@@ -240,16 +251,20 @@ if __name__ == '__main__':
 
             # 【第四步】市场订单匹配
             #deals,AskList,BidList,trader_list,market_price = gen_deals(AskList,BidList,market.P_list[-1])
-            #【选择1】 市场订单匹配选择连续竞价
-            deals, AskList, BidList, trader_list, market_price = market.continuous_auction(AskList, BidList,market.P_list[-1], market.t)
-            #【选择2】 市场订单匹配也选择集合竞价
-            # deals, AskList, BidList, trader_list, market_price = market.call_auction(AskList, BidList)
+            if auction_flag:
+                #【选择1】 市场订单匹配选择连续竞价
+                deals, AskList, BidList, trader_list, market_price = market.continuous_auction(AskList, BidList,market.P_list[-1], market.t)
+            else:
+                #【选择2】 市场订单匹配也选择集合竞价
+                deals, AskList, BidList, trader_list, market_price = market.call_auction(AskList, BidList,market.P_list[-1])
             market.P_list.append(market_price)
             #deals = deals.append(temp_deals,ignore_index=True)
             print('There are ',len(deals) ,'deals in this round! The market Price is ',market_price)
 
             # 【第五步】更新交易者的状态
-            updata_trader_stutus(trader_list,normal_agents,market)
+            if high_flag:
+                updata_high_trader_stutus(trader_list, high_agents)
+            updata_low_trader_stutus(trader_list,normal_agents,market)
             dealfile = './Data' + str(r) + '/Deals/Deals' + str(market.t) + '.csv'
             deals.to_csv(dealfile, index=False)
             market.t += 1
