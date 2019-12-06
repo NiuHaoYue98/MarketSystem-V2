@@ -28,11 +28,13 @@ class Market:
         self.F_list.append(F_t)
 
     #集合竞价匹配
-    def call_auction(self,AskList,BidList):
-        price = 0
+    def call_auction(self,AskList,BidList,price):
         deals = pd.DataFrame(columns=['AskId', 'BidId', 'Scale', 'Price', 'Time','AskTime','BidTime','AskPrice','BidPrice','AskScale','BidScale'])
         trader_list = []
         bid_start = 0
+        if AskList.shape[0] == 0 or BidList.shape[0] == 0:
+            return deals, AskList, BidList,trader_list,price
+
         for ask_index in range(AskList.shape[0]):
             for bid_index in range(bid_start, BidList.shape[0]):
                 if AskList.at[ask_index, 'Price'] <= BidList.at[bid_index, 'Price']:
