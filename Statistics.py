@@ -187,7 +187,7 @@ def count_crash(MC):
 
 
 if __name__ == '__main__':
-    MC = 5                              #模拟次数
+    MC = 20                              #模拟次数
     total_high = 10                     #高频交易者数量
     total_low = 100                     #低频交易者数量
     init_cash = 200                     #初始现金数量
@@ -201,9 +201,9 @@ if __name__ == '__main__':
         high_trader.append('high' + str(i))
 
     #统计控制
-    deal_count = False                  #高频交易者成交情况统计
-    wealth_count = False                 #交易者财富情况统计
-    wealth_distribution = False          #交易者财富变动及分布
+    deal_count = True                  #高频交易者成交情况统计
+    wealth_count = True                 #交易者财富情况统计
+    wealth_distribution = True          #交易者财富变动及分布
     crash_count = True
 
 
