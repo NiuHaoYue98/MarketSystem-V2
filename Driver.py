@@ -22,7 +22,10 @@ def sort_orders(AskList,BidList):
     return AskList,BidList
 
 # 【第一步】普通的程式化交易者提交订单
-def gen_normal_orders(market,AskList,BidList):
+def gen_normal_orders(market,asklist,bidlist):
+    AskList = pd.DataFrame(columns=['Price', 'Time', 'TraderId', 'Scale', 'SuspendTime'])
+    BidList = pd.DataFrame(columns=['Price', 'Time', 'TraderId', 'Scale', 'SuspendTime'])
+
     para = N_Parameters(market)
     for agent in normal_agents:
         order = agent.gen_order(market,para)
@@ -32,8 +35,11 @@ def gen_normal_orders(market,AskList,BidList):
             AskList = AskList.append([{'Price':order.price,'Time':order.time,'TraderId':order.traderID,'Scale':order.scale,'SuspendTime':order.suspend_time}])
         else:
             BidList = BidList.append([{'Price':order.price,'Time':order.time,'TraderId':order.traderID,'Scale':order.scale,'SuspendTime':order.suspend_time}])
-    AskList,BidList = sort_orders(AskList,BidList)
     print("【Normal】The number of the Asklist and the Bidlist is ", len(AskList), len(BidList))
+    asklist = asklist.append(AskList,ignore_index=True)
+    bidlist = bidlist.append(BidList,ignore_index=True)
+    AskList,BidList = sort_orders(asklist,bidlist
+                                  )
     return AskList,BidList
 
 # 【第二步】高频交易者提交订单
@@ -156,7 +162,7 @@ if __name__ == '__main__':
     T = 500            # 交易周期:60*6=360,没必要设置T过大
     agent_flag = False  # 控制普通程式化交易者的信息输出，默认为Fasle
     list_flag = True   # 控制每轮交易的订单簿输出，默认为Flase
-    high_flag = True    #控制市场中是否有高频交易者
+    high_flag = False    #控制市场中是否有高频交易者
     auction_flag = True  # 控制开盘后的市场匹配方式，默认为True，表示连续竞价
 
     for r in range(0,MC):
