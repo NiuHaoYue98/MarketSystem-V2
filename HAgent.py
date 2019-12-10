@@ -39,7 +39,7 @@ class HAgent(Agent.Agent):
         self.order_flag = True
         self.order.traderID = self.traderID
         #确定订单时间及剩余时间
-        self.order.time = para.t + np.random.randint(50,100)/100
+        self.order.time = para.t + np.random.randint(30,100)/100
         self.order.suspend_time = self.gamma
         #确定订单方向、指令规模、订单价格
         di = np.random.rand()
@@ -47,13 +47,13 @@ class HAgent(Agent.Agent):
             self.order.direction = 1
             #best_ask_price = self.gen_best_price(self.order.time,Asklist)
             best_ask_price = para.best_ask_price
-            self.order.price = self.gen_order_price(best_ask_price)
+            self.order.price = self.gen_best_price(self.order.time,Asklist,best_ask_price)
             self.order.scale = self.gen_order_scale(para.bid_scale)
         else:
             self.order.direction = 0
             #best_bid_price = self.gen_best_price(self.order.time,Bidlist)
             best_bid_price = para.best_bid_price
-            self.order.price = self.gen_order_price(best_bid_price)
+            self.order.price = self.gen_best_price(self.order.time,Bidlist,best_bid_price)
             self.order.scale = self.gen_order_scale(para.ask_scale)
             self.kappa = -self.kappa
         if self.order.scale == 0:
@@ -82,17 +82,21 @@ class HAgent(Agent.Agent):
                 return False
 
 
-    #【旧】产生最优价格
-    def gen_best_price(self,time,orderlist):
+    #【现】产生最优价格
+    def gen_best_price(self,time,orderlist,best_price):
         temp_order = orderlist[orderlist.Time < time]
-        best_price = temp_order.iloc[0].at['Price']
+        if len(temp_order) != 0:
+            best_price = temp_order.iloc[0].at['Price']
+        best_price = best_price * (1+self.kappa)
+        best_price = round(best_price,2)
+        self.kappa = abs(self.kappa)
         return best_price
 
-    #确定订单价格
+    #【旧】确定订单价格
     def gen_order_price(self,best_price):
         p_t = best_price * (1+self.kappa)
         self.kappa = abs(self.kappa)
-        p_t = round(p_t,4)
+        p_t = round(p_t,2)
         return p_t
 
     #确定指令规模
@@ -235,19 +239,23 @@ class H_Parameters():
         ask_num = len(AskList)
         bid_num = len(BidList)
         if ask_num != 0:
-            avg_ask_volumn = 10000 * self.lamb * AskList.Scale.sum() / ask_num
+            avg_ask_volumn = int(10 * self.lamb * AskList.Scale.sum() / ask_num)
         else:
-            avg_ask_volumn = 0.05
+            avg_ask_volumn = 3
         if bid_num != 0:
-            avg_bid_volumn = 10000 * self.lamb * BidList.Scale.sum() / bid_num
+            avg_bid_volumn = int(10 * self.lamb * BidList.Scale.sum() / bid_num)
         else:
-            avg_bid_volumn = 0.05
-        ask_scale = np.divide(np.random.poisson(avg_bid_volumn,self.agent_num) ,10000)
-        bid_scale = np.divide(np.random.poisson(avg_ask_volumn,self.agent_num) ,10000)
+            avg_bid_volumn = 3
+        ask_scale = np.random.poisson(avg_bid_volumn,self.agent_num)
+        bid_scale = np.random.poisson(avg_ask_volumn,self.agent_num)
         max_ask_scale = AskList.Scale.sum() / 4
         max_bid_scale = BidList.Scale.sum() / 4
 
         for i in range(self.agent_num):
+            if ask_scale[i] == 0:
+                ask_scale[i] = 1
+            if bid_scale[i] == 0:
+                bid_scale[i] = 1
             if ask_scale[i] > max_ask_scale:
                 ask_scale[i] = max_ask_scale
             if bid_scale[i] > max_bid_scale:
