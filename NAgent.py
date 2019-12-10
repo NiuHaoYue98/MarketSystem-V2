@@ -14,7 +14,7 @@ class NAgent(Agent.Agent):
     sigma_z = 0.01      #订单价格震荡标准差
     delta = 0.0001      #订单价格漂移参数
     phi = 0.5           #下一轮交易采用图表策略的概率
-    gamma = 20          #更新挂单时间
+    gamma = 5          #更新挂单时间
     order_flag = False  #交易者市场中是否有订单
 
 
@@ -23,9 +23,9 @@ class NAgent(Agent.Agent):
         #初始化编号
         self.traderID = 'low' + str(i)
         # 产生交易周期参数
-        mean_theta = 20  # 交易周期均值
-        min_theta = 10  # 最小交易周期
-        max_theta = 40  # 最大交易周期
+        mean_theta = 2  # 交易周期均值
+        min_theta = 1  # 最小交易周期
+        max_theta = 4  # 最大交易周期
         while self.theta < min_theta or self.theta > max_theta :
             self.theta = int(np.random.exponential(mean_theta))
         # 产生两种策略指令规模震荡列表
@@ -59,17 +59,18 @@ class NAgent(Agent.Agent):
         # print(para.price[0])
         self.order.price = para.price[0]
         #self.order.price = self.gen_order_price(market)
-        self.order.time = market.t + np.random.randint(0,50)/100
+        self.order.time = market.t + np.random.randint(0,100)/100
         self.order.suspend_time = self.gamma
         #确定订单方向和指令规模
         size = self.gen_order_scale(market.P_list,market.F_list,market.t)
-        if size == 0:
-            return
         if size > 0:
             self.order.direction = 1
-        else:
+        if size < 0:
             self.order.direction = 0
-        self.order.scale = abs(size)
+        size = int(abs(size))
+        if size < 1:
+            size = 1
+        self.order.scale = size
         return self.order
 
     #判断是否参与市场
@@ -91,7 +92,7 @@ class NAgent(Agent.Agent):
             size = self.alpha_c * (P_list[-1] - P_list[-2]) + self.epsilion_c[t]
         else:
             size = self.alpha_f * (F_list[-1] - P_list[-1]) + self.epsilion_f[t]
-        size = round(size,4)
+        size = round(size,4) * 100
         return size
 
     #确定订单价格:需要的参数是上一周期的市场价格
@@ -130,7 +131,7 @@ class N_Parameters():
         #集中产生订单价格
         z_t = np.random.normal(0,self.sigma_z,self.agent_num)
         p_t = market.P_list[-1] * (1+self.delta) * (1+z_t)
-        self.price = p_t.round(4)
+        self.price = p_t.round(2)
 
 
 
