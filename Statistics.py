@@ -55,7 +55,7 @@ def count_submit(path,j,total_high):
     return df
 
 #统计交易者的财富分配
-def count_wealth(path0,MC,low_trader,high_trader,init_cash,init_stock):
+def count_wealth(path0,MC,low_trader,high_trader,noisy_trader,init_cash,init_stock):
     for j in range(MC):
         path = path0 + '/Data' + str(j) + '/Deals'
         count = 0                   #交易轮次
@@ -66,24 +66,39 @@ def count_wealth(path0,MC,low_trader,high_trader,init_cash,init_stock):
         stock_high_df = pd.DataFrame({'TraderId':high_trader})
         cash_low_df = pd.DataFrame({'TraderId':low_trader})
         cash_high_df = pd.DataFrame({'TraderId':high_trader})
+        stock_noisy_df = pd.DataFrame({'TraderId':noisy_trader})
+        cash_noisy_df = pd.DataFrame({'TraderId':noisy_trader})
 
         #集合竞价只有低频有财富变动
         filename = path0 + '/Data' + str(j) + '/Deals/Deals' + str(0) + '.csv'
         df = pd.read_csv(filename)
         stock_low_data = [0 for i in range(len(low_trader))]
         cash_low_data = [0 for i in range(len(low_trader))]
+        stock_noisy_data = [0 for i in range(len(noisy_trader))]
+        cash_noisy_data = [0 for i in range(len(noisy_trader))]
         for index in range(df.shape[0]):
             askid = df.at[index,'AskId']
             bidid = df.at[index,'BidId']
             price = df.at[index,'Price']
             scale = df.at[index,'Scale']
-            stock_low_data[int(askid[3:])] -= scale
-            cash_low_data[int(askid[3:])] += scale * price
-            stock_low_data[int(bidid[3:])] += scale
-            cash_low_data[int(bidid[3:])] -= scale * price
+            if askid[:3] == 'low':
+                stock_low_data[int(askid[3:])] -= scale
+                cash_low_data[int(askid[3:])] += scale * price
+            elif askid[:5] == 'noisy':
+                stock_noisy_data[int(askid[5:])] -= scale
+                cash_noisy_data[int(askid[5:])] += scale * price
+            if bidid[:3] == 'low':
+                stock_low_data[int(bidid[3:])] += scale
+                cash_low_data[int(bidid[3:])] -= scale * price
+            elif bidid[:5] == 'noisy':
+                stock_low_data[int(bidid[5:])] += scale
+                cash_low_data[int(bidid[5:])] -= scale * price
+
             column_name = 'Round' + str(0)
             stock_low_df[column_name] = stock_low_data
             cash_low_df[column_name] = cash_low_data
+            stock_noisy_df[column_name] = stock_noisy_data
+            cash_noisy_df[column_name] = cash_noisy_data
 
         #连续竞价部分
         for i in range(1,count):
@@ -93,6 +108,9 @@ def count_wealth(path0,MC,low_trader,high_trader,init_cash,init_stock):
             stock_high_data = [0 for i in range(len(high_trader))]
             cash_low_data = [0 for i in range(len(low_trader))]
             cash_high_data = [0 for i in range(len(high_trader))]
+            stock_noisy_data = [0 for i in range(len(noisy_trader))]
+            cash_noisy_data = [0 for i in range(len(noisy_trader))]
+
             for index in range(df.shape[0]):
                 askid = df.at[index,'AskId']
                 bidid = df.at[index,'BidId']
@@ -101,36 +119,54 @@ def count_wealth(path0,MC,low_trader,high_trader,init_cash,init_stock):
                 if askid[:4] == 'high':
                     stock_high_data[int(askid[4:])] -= scale
                     cash_high_data[int(askid[4:])] += scale * price
-                else:
+                elif askid[:3] == 'low':
                     stock_low_data[int(askid[3:])] -= scale
                     cash_low_data[int(askid[3:])] += scale * price
+                elif askid[:5] == 'noisy':
+                    stock_noisy_data[int(askid[5:])] -= scale
+                    cash_noisy_data[int(askid[5:])] += scale * price
                 if bidid[:4] == 'high':
                     stock_high_data[int(bidid[4:])] += scale
                     cash_high_data[int(bidid[4:])] -= scale * price
-                else:
+                elif bidid[:3] == 'low':
                     stock_low_data[int(bidid[3:])] += scale
                     cash_low_data[int(bidid[3:])] -= scale * price
+                elif bidid[:5] == 'noisy':
+                    stock_low_data[int(bidid[5:])] += scale
+                    cash_low_data[int(bidid[5:])] -= scale * price
+
             column_name = 'Round' + str(i)
             stock_low_df[column_name] = stock_low_data
             stock_high_df[column_name] = stock_high_data
             cash_low_df[column_name] = cash_low_data
             cash_high_df[column_name] = cash_high_data
+            stock_noisy_df[column_name] = stock_noisy_data
+            cash_noisy_df[column_name] = cash_noisy_data
+
 
         stock_low_df['Final'] = init_stock
-        stock_high_df['Final'] = init_stock
+        stock_noisy_df['Final'] = init_stock
+        stock_high_df['Final'] = init_stock - 1.5
         cash_low_df['Final'] = init_cash
-        cash_high_df['Final'] = init_cash
+        cash_noisy_df['Final'] = init_cash
+        cash_high_df['Final'] = init_cash + 150
         for i in range(1,count):
             column_name = 'Round' + str(i)
             stock_low_df['Final'] = stock_low_df['Final'] + stock_low_df[column_name]
             stock_high_df['Final'] = stock_high_df['Final'] + stock_high_df[column_name]
+            stock_noisy_df['Final'] = stock_noisy_df['Final'] + stock_noisy_df[column_name]
             cash_low_df['Final'] += cash_low_df[column_name]
             cash_high_df['Final'] += cash_high_df[column_name]
+            cash_noisy_df['Final'] += cash_noisy_df[column_name]
 
         low_stock_file = path0 + '/Data' + str(j) + '/LowStock.csv'
         stock_low_df.to_csv(low_stock_file, index=False)
         low_cash_file = path0 + '/Data' + str(j) + '/LowCash.csv'
         cash_low_df.to_csv(low_cash_file,index=False)
+        noisy_stock_file = path0 + '/Data' + str(j) + '/NoisyStock.csv'
+        stock_noisy_df.to_csv(noisy_stock_file, index=False)
+        noisy_cash_file = path0 + '/Data' + str(j) + '/NoisyCash.csv'
+        cash_noisy_df.to_csv(noisy_cash_file,index=False)
         high_stock_file = path0 + '/Data' + str(j) + '/HighStock.csv'
         stock_high_df.to_csv(high_stock_file,index=False)
         high_cash_file = path0 + '/Data' + str(j) + '/HighCash.csv'
@@ -138,15 +174,19 @@ def count_wealth(path0,MC,low_trader,high_trader,init_cash,init_stock):
         print(j,'财富统计完成！')
 
 #统计交易者的财富分配
-def distribution_wealth(path,MC,low_trader,high_trader,init_cash,init_stock):
+def distribution_wealth(path,MC,low_trader,high_trader,noisy_trader,init_cash,init_stock):
     low_df = pd.DataFrame({'TraderId': low_trader,'InitCash':[init_cash for i in range(len(low_trader))],'InitStock':[init_stock for i in range(len(low_trader))]})
-    high_df = pd.DataFrame({'TraderId': high_trader,'InitCash':[init_cash for i in range(len(high_trader))],'InitStock':[init_stock for i in range(len(high_trader))]})
+    noisy_df = pd.DataFrame({'TraderId': noisy_trader,'InitCash':[init_cash for i in range(len(noisy_trader))],'InitStock':[init_stock for i in range(len(noisy_trader))]})
+    high_df = pd.DataFrame({'TraderId': high_trader,'InitCash':[init_cash+150 for i in range(len(high_trader))],'InitStock':[init_stock-0.5 for i in range(len(high_trader))]})
     low_avg_cash = []
     low_avg_stock = []
+    noisy_avg_cash = []
+    noisy_avg_stock = []
     high_avg_cash = []
     high_avg_stock = []
     low_avg_wealth = []
     high_avg_wealth = []
+    noisy_avg_wealth = []
     for j in range(MC):
         price_df = pd.read_csv(path + '/Data' + str(j) + '/MarketPrice.csv')
         price = price_df.at[len(price_df)-1,'MarketPrice']
@@ -157,6 +197,10 @@ def distribution_wealth(path,MC,low_trader,high_trader,init_cash,init_stock):
         low_df[cash_column] = low_cash['Final']
         low_stock = pd.read_csv(path + '/Data' + str(j) + '/LowStock.csv')
         low_df[stock_column] = low_stock['Final']
+        noisy_cash = pd.read_csv(path + '/Data' + str(j) + '/NoisyCash.csv')
+        noisy_df[cash_column] = noisy_cash['Final']
+        noisy_stock = pd.read_csv(path + '/Data' + str(j) + '/NoisyStock.csv')
+        noisy_df[stock_column] = noisy_stock['Final']
         high_cash = pd.read_csv(path + '/Data' + str(j) + '/HighCash.csv')
         high_df[cash_column] = high_cash['Final']
         high_stock = pd.read_csv(path + '/Data' + str(j) + '/HighStock.csv')
@@ -164,31 +208,39 @@ def distribution_wealth(path,MC,low_trader,high_trader,init_cash,init_stock):
         price_column = 'Price' + str(j)
         low_df[price_column] = price
         high_df[price_column] = price
+        noisy_df[price_column] = price
         low_avg_cash.append(low_df[cash_column].mean())
         low_avg_stock.append(low_df[stock_column].mean())
+        noisy_avg_cash.append(noisy_df[cash_column].mean())
+        noisy_avg_stock.append(noisy_df[stock_column].mean())
         high_avg_cash.append(high_df[cash_column].mean())
         high_avg_stock.append(high_df[stock_column].mean())
         wealth_column = 'Wealth' + str(j)
         low_df[wealth_column] = low_df[cash_column] + low_df[stock_column]*price
         high_df[wealth_column] = high_df[cash_column] + high_df[stock_column]*price
+        noisy_df[wealth_column] = noisy_df[cash_column] + noisy_df[stock_column]*price
         low_avg_wealth.append(low_df[wealth_column].mean())
+        noisy_avg_wealth.append(noisy_df[wealth_column].mean())
         high_avg_wealth.append(high_df[wealth_column].mean())
         print(j,'财富分布统计完成！')
 
     print('【Normal】Cash Avg',mean(low_avg_cash),'Stock Avg',mean(low_avg_stock))
     print('【Normal】Cash Avg Std',std(low_avg_cash),'Stock Avg Stf',std(low_avg_stock))
     print('【Normal】Wealth Avg', mean(low_avg_wealth), 'Wealth Avg Std', std(low_avg_wealth))
+    print('【Noisy】Cash Avg',mean(noisy_avg_cash),'Stock Avg',mean(noisy_avg_stock))
+    print('【Noisy】Cash Avg Std',std(noisy_avg_cash),'Stock Avg Stf',std(noisy_avg_stock))
+    print('【Noisy】Wealth Avg', mean(noisy_avg_wealth), 'Wealth Avg Std', std(noisy_avg_wealth))
     print('【High】Cash Avg',mean(high_avg_cash),'Stock Avg',mean(high_avg_stock))
     print('【High】Cash Avg Std',std(high_avg_cash),'Stock Avg Std',std(high_avg_stock))
     print('【High】Wealth Avg', mean(high_avg_wealth), 'Wealth Avg Std', std(high_avg_wealth))
 
-
+    low_df = low_df.append(noisy_df)
     low_df = low_df.append(high_df)
-    low_df.to_csv('WealthDistribution.csv',index=False)
-    wealth_df = pd.DataFrame({'LowAvgCash':low_avg_cash,'HighAvgCash':high_avg_cash,'LowAvgStock':low_avg_stock,'HighAvgStock':high_avg_stock,'LowAvgWealth':low_avg_wealth,'HighAvgWealth':high_avg_wealth})
+    low_df.to_csv(path + 'WealthDistribution.csv',index=False)
+    wealth_df = pd.DataFrame({'LowAvgCash':low_avg_cash,'HighAvgCash':high_avg_cash,'NoisyAvgCash':noisy_avg_cash,'LowAvgStock':low_avg_stock,'HighAvgStock':high_avg_stock,'NoisyAvgStock':noisy_avg_stock,'LowAvgWealth':low_avg_wealth,'HighAvgWealth':high_avg_wealth,'NoisyAvgWealth':noisy_avg_wealth})
     wealth_df['Judge'] = np.where(wealth_df.HighAvgWealth > wealth_df.LowAvgWealth,1,0)
     print(sum(wealth_df['Judge'].sum()))
-    wealth_df.to_csv('WealthJudge.csv',index=False)
+    wealth_df.to_csv(path + '/WealthJudge.csv',index=False)
 
 #统计闪电崩盘的发生频率
 def count_crash(path,MC):
@@ -239,18 +291,22 @@ def count_yield_of_return(path,MC):
     print(mean(vlist),std(vlist))
 
 if __name__ == '__main__':
-    MC = 20                              #模拟次数
-    total_high = 10                     #高频交易者数量
-    total_low = 100                     #低频交易者数量
+    MC = 1                              #模拟次数
+    total_high = 20                     #高频交易者数量
+    total_low = 300                     #低频交易者数量
+    total_noisy = 20                    #噪声交易者数量
     init_cash = 200                     #初始现金数量
     init_stock = 2                      #初始股票数量
     low_trader = []                     #低频交易者列表
     high_trader = []                    #高频交易者列表
+    noisy_trader = []                   #噪声交易者列表
 
     for i in range(total_low):
         low_trader.append('low' + str(i))
     for i in range(total_high):
         high_trader.append('high' + str(i))
+    for i in range(total_noisy):
+        noisy_trader.append('noisy' + str(i))
 
     #统计控制
     deal_count = False                  #高频交易者成交情况统计
@@ -276,11 +332,11 @@ if __name__ == '__main__':
 
     #财富统计
     if wealth_count:
-        count_wealth(path,MC,low_trader,high_trader,init_cash,init_stock)
+        count_wealth(path,MC,low_trader,high_trader,noisy_trader,init_cash,init_stock)
 
     #财富变动及分布统计
     if wealth_distribution:
-        distribution_wealth(path,MC,low_trader,high_trader,init_cash,init_stock)
+        distribution_wealth(path,MC,low_trader,high_trader,noisy_trader,init_cash,init_stock)
 
     #闪电崩盘统计
     if crash_count:
