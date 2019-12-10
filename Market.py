@@ -3,8 +3,9 @@ import pandas as pd
 from Orders import Deal
 
 class Market:
-    NL = 100           #普通程式化交易者数量
-    NH = 10             #高频交易者数量
+    NL = 300            #普通交易者数量
+    NH = 20             #高频交易者数量
+    NN = 20             #噪声交易者数量
     t = 0               #当前周期
     d_c_list = []       #图表交易者的成交量
     d_f_list = []       #基本面交易者的成交量
@@ -61,8 +62,13 @@ class Market:
                     deals = deals.append([{'Time': deal.time, 'AskId': deal.askID, 'BidId': deal.bidID,
                                            'Price': deal.price, 'Scale': deal.scale,'AskTime':deal.asktime,'BidTime':deal.bidtime,'AskPrice':deal.askprice,'BidPrice':deal.bidprice,'AskScale':deal.askscale,'BidScale':deal.bidscale}])
                     # 订单簿变更
-                    if ask_scale < bid_scale:
-                        BidList.at[bid_index, 'Scale'] = BidList.at[bid_index, 'Scale'] - AskList.at[ask_index, 'Scale']
+                    if ask_scale <= bid_scale:
+                        if ask_scale == bid_scale:
+                            trader_list.append(BidList.at[bid_index, 'TraderId'])
+                            BidList.drop(bid_index, inplace=True)
+                            bid_start += 1
+                        else:
+                            BidList.at[bid_index, 'Scale'] = BidList.at[bid_index, 'Scale'] - AskList.at[ask_index, 'Scale']
                         trader_list.append(AskList.at[ask_index, 'TraderId'])
                         AskList.drop(ask_index, inplace=True)
                     else:
@@ -156,8 +162,13 @@ class Market:
                         deals = deals.append([{'Time': deal.time, 'AskId': deal.askID, 'BidId': deal.bidID,
                                                'Price': deal.price, 'Scale': deal.scale,'AskTime':deal.asktime,'BidTime':deal.bidtime,'AskPrice':deal.askprice,'BidPrice':deal.bidprice,'AskScale':deal.askscale,'BidScale':deal.bidscale}])
                         # 订单簿变更
-                        if ask_scale < bid_scale:
-                            old_bidlist.at[bid_index, 'Scale'] = old_bidlist.at[bid_index, 'Scale'] - old_asklist.at[ask_index, 'Scale']
+                        if ask_scale <= bid_scale:
+                            if ask_scale == bid_scale:
+                                trader_list.append(old_bidlist.at[bid_index, 'TraderId'])
+                                old_bidlist.drop(bid_index, inplace=True)
+                                bid_start += 1
+                            else:
+                                old_bidlist.at[bid_index, 'Scale'] = old_bidlist.at[bid_index, 'Scale'] - old_asklist.at[ask_index, 'Scale']
                             trader_list.append(old_asklist.at[ask_index, 'TraderId'])
                             old_asklist.drop(ask_index, inplace=True)
                         else:
