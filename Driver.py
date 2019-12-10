@@ -3,6 +3,7 @@ from Market import Market
 from HAgent import HAgent,H_Parameters
 from NAgent import NAgent,N_Parameters
 from Orders import Deal
+from Agent import Agent
 import os
 import sqlite3
 
@@ -21,8 +22,8 @@ def sort_orders(AskList,BidList):
     BidList.drop(['TimeRank'],axis=1,inplace=True)
     return AskList,BidList
 
-# 【第一步】普通的程式化交易者提交订单
-def gen_normal_orders(market,asklist,bidlist):
+# 【第一步】普通交易者提交订单
+def low_gen_normal_orders(normal_agents,market,asklist,bidlist):
     AskList = pd.DataFrame(columns=['Price', 'Time', 'TraderId', 'Scale', 'SuspendTime'])
     BidList = pd.DataFrame(columns=['Price', 'Time', 'TraderId', 'Scale', 'SuspendTime'])
 
@@ -38,8 +39,24 @@ def gen_normal_orders(market,asklist,bidlist):
     print("【Normal】The number of the Asklist and the Bidlist is ", len(AskList), len(BidList))
     asklist = asklist.append(AskList,ignore_index=True)
     bidlist = bidlist.append(BidList,ignore_index=True)
-    AskList,BidList = sort_orders(asklist,bidlist
-                                  )
+    AskList,BidList = sort_orders(asklist,bidlist)
+    return AskList,BidList
+def noisy_gen_normal_orders(noisy_agents,market,asklist,bidlist):
+    AskList = pd.DataFrame(columns=['Price', 'Time', 'TraderId', 'Scale', 'SuspendTime'])
+    BidList = pd.DataFrame(columns=['Price', 'Time', 'TraderId', 'Scale', 'SuspendTime'])
+
+    for agent in noisy_agents:
+        order = agent.gen_order(market)
+        if not order:
+            continue
+        if order.direction == 0:
+            AskList = AskList.append([{'Price':order.price,'Time':order.time,'TraderId':order.traderID,'Scale':order.scale,'SuspendTime':order.suspend_time}])
+        else:
+            BidList = BidList.append([{'Price':order.price,'Time':order.time,'TraderId':order.traderID,'Scale':order.scale,'SuspendTime':order.suspend_time}])
+    print("【Noisy】The number of the Asklist and the Bidlist is ", len(AskList), len(BidList))
+    asklist = asklist.append(AskList,ignore_index=True)
+    bidlist = bidlist.append(BidList,ignore_index=True)
+    AskList,BidList = sort_orders(asklist,bidlist)
     return AskList,BidList
 
 # 【第二步】高频交易者提交订单
@@ -142,12 +159,22 @@ def updata_low_trader_stutus(trader_list,normal_agents,market):
         if agent.traderID in trader_list:
             agent.order_flag = False
         agent.update_phi(market)
+        agent.reset_order()
+
+def updata_noisy_trader_stutus(trader_list,noisy_agents):
+    #更新订单状态标志、更新下一周期的策略选择
+    for agent in noisy_agents:
+        if agent.traderID in trader_list:
+            agent.order_flag = False
+        agent.reset_order()
 
 def updata_high_trader_stutus(trader_list,high_agents):
     #更新订单状态标志、更新下一周期的策略选择
     for agent in high_agents:
         if agent.traderID in trader_list:
             agent.order_flag = False
+        agent.reset_order()
+
 
 #创建新文件夹
 def mkdir(path):
@@ -158,11 +185,11 @@ def mkdir(path):
 
 
 if __name__ == '__main__':
-    MC = 20             # 蒙特卡洛重复次数
-    T = 500            # 交易周期:60*6=360,没必要设置T过大
+    MC = 1             # 蒙特卡洛重复次数
+    T = 2            # 交易周期:60*6=360,没必要设置T过大
     agent_flag = False  # 控制普通程式化交易者的信息输出，默认为Fasle
-    list_flag = True   # 控制每轮交易的订单簿输出，默认为Flase
-    high_flag = False    #控制市场中是否有高频交易者
+    list_flag = True   # 控制每轮交易的订单簿输出，默认为True
+    high_flag = True    #控制市场中是否有高频交易者
     auction_flag = True  # 控制开盘后的市场匹配方式，默认为True，表示连续竞价
 
     for r in range(0,MC):
@@ -187,6 +214,7 @@ if __name__ == '__main__':
                 Philist0.append(agent.phi)
             LowAgent = pd.DataFrame({'Id':Idlist,'Theta':Thetalist,'Phi0':Philist0})
         high_agents = [HAgent(i) for i in range(market.NH)]
+        noisy_agents = [Agent(i) for i in range(market.NN)]
 
         #记录订单簿信息
         if list_flag:
@@ -195,7 +223,9 @@ if __name__ == '__main__':
         #市场开盘——集合一轮集合竞价
         print(market.t)
         market.gen_fundamental_price()
-        AskList, BidList = gen_normal_orders(market, AskList, BidList)
+        AskList, BidList = low_gen_normal_orders(normal_agents,market, AskList, BidList)
+        AskList, BidList = noisy_gen_normal_orders(noisy_agents,market, AskList, BidList)
+
 
         #记录程式化交易者的信息
         if agent_flag:
@@ -205,12 +235,13 @@ if __name__ == '__main__':
                 SType.append(agent.strategy_type)
             LowAgent[column_name] = SType
 
-        deals, AskList, BidList, trader_list, market_price = market.call_auction(AskList, BidList,market.P_list[-1])
         if list_flag:
             askfile = './Data' + str(r) + './AskList/AskList' + str(market.t) + '.csv'
-            AskList.to_csv(askfile, index=False)
+            AskList.to_csv(askfile,index=False)
             bidfile = './Data' + str(r) + './BidList/BidList' + str(market.t) + '.csv'
             BidList.to_csv(bidfile, index=False)
+
+        deals, AskList, BidList, trader_list, market_price = market.call_auction(AskList, BidList,market.P_list[-1])
 
         market.P_list.append(market_price)
         #deals = deals.append(temp_deals, ignore_index=True)
@@ -218,6 +249,7 @@ if __name__ == '__main__':
         if high_flag:
             updata_high_trader_stutus(trader_list, high_agents)
         updata_low_trader_stutus(trader_list, normal_agents, market)
+        updata_noisy_trader_stutus(trader_list, noisy_agents)
 
 
         mkdir('./Data' + str(r) + '/Deals')
@@ -232,7 +264,9 @@ if __name__ == '__main__':
             market.gen_fundamental_price()
             print('Fundamental Price is ', market.F_list[-1])
             # 【第一步】普通的程式化交易者提交订单
-            AskList,BidList = gen_normal_orders(market,AskList,BidList)
+            AskList,BidList = low_gen_normal_orders(normal_agents,market,AskList,BidList)
+            AskList, BidList = noisy_gen_normal_orders(noisy_agents, market, AskList, BidList)
+
             if agent_flag:
                 #记录程式化交易者的信息
                 column_name = 'S' + str(market.t)
@@ -271,6 +305,7 @@ if __name__ == '__main__':
             if high_flag:
                 updata_high_trader_stutus(trader_list, high_agents)
             updata_low_trader_stutus(trader_list,normal_agents,market)
+            updata_noisy_trader_stutus(trader_list, noisy_agents)
             dealfile = './Data' + str(r) + '/Deals/Deals' + str(market.t) + '.csv'
             deals.to_csv(dealfile, index=False)
             market.t += 1
